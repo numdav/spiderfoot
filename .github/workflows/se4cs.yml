@@ -1,0 +1,148 @@
+name: se4cs - SpiderFoot (GitGuardian - Snyk - Semgrep - SonarQube Cloud)
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REPORT_DIR: reports
+
+jobs:
+  gitguardian:
+    name: GitGuardian
+    runs-on: ubuntu-latest
+    if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
+    steps:
+      - name: Checkout (full history for CI scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ggshield
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install ggshield
+
+      - name: Run ggshield secret scan (CI) -> JSON
+        continue-on-error: true
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        run: |
+          mkdir -p "${REPORT_DIR}/gitguardian"
+          ggshield secret scan ci --json -o "${REPORT_DIR}/gitguardian/ggshield-ci.json" --exit-zero
+
+      - name: Upload GitGuardian report (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitguardian-report
+          path: reports/gitguardian
+
+  snyk:
+    name: Snyk
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SNYK_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@v1.0.0
+
+      - name: Run Snyk test -> JSON + SARIF
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          mkdir -p "${REPORT_DIR}/snyk"
+          snyk test \
+            --file=requirements.txt \
+            --package-manager=pip \
+            --severity-threshold=low \
+            --json-file-output="${REPORT_DIR}/snyk/snyk-open-source.json" \
+            --sarif-file-output="${REPORT_DIR}/snyk/snyk-open-source.sarif" || true
+
+      - name: Upload Snyk report (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-report
+          path: reports/snyk
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install semgrep
+
+      - name: Run Semgrep -> SARIF
+        continue-on-error: true
+        run: |
+          mkdir -p "${REPORT_DIR}/semgrep"
+          semgrep scan --config auto --sarif --output "${REPORT_DIR}/semgrep/semgrep.sarif"
+
+      - name: Upload Semgrep report (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: reports/semgrep
+
+  sonarcloud:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SONAR_TOKEN != '' && vars.SONAR_PROJECT_KEY != '' && vars.SONAR_ORGANIZATION != '' }}
+    steps:
+      - name: Checkout (full history recommended)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.sources=.
+
+      - name: Export Sonar issues/measures -> JSON artifacts
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        run: |
+          mkdir -p "${REPORT_DIR}/sonarcloud"
+
+          # SonarQube Cloud Web API auth uses Authorization: Bearer <token>
+          curl -sSf \
+            --header "Authorization: Bearer ${SONAR_TOKEN}" \
+            --url "https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&organization=${SONAR_ORGANIZATION}&ps=500" \
+            -o "${REPORT_DIR}/sonarcloud/issues.json" || true
+
+          curl -sSf \
+            --header "Authorization: Bearer ${SONAR_TOKEN}" \
+            --url "https://sonarcloud.io/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities,security_hotspots,code_smells,coverage,duplicated_lines_density,ncloc" \
+            -o "${REPORT_DIR}/sonarcloud/measures.json" || true
+
+      - name: Upload SonarQube Cloud report (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarcloud-report
+          path: reports/sonarcloud
