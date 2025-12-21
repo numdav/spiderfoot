@@ -1,4 +1,4 @@
-name: se4cs - SpiderFoot (GitGuardian - Snyk - Semgrep - SonarQube Cloud)
+name: se4cs_SpiderFoot
 
 on:
   push:
