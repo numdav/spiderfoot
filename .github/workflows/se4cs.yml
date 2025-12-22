@@ -142,7 +142,7 @@ jobs:
           name: sonarcloud-report
           path: reports/sonarcloud/
   
-aggregate-reports:
+  aggregate-reports:
     name: Final Security Dashboard
     needs: [gitguardian, snyk, semgrep, sonarcloud]
     if: always()
