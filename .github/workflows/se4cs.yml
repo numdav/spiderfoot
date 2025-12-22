@@ -19,6 +19,7 @@ jobs:
       has_gg: ${{ steps.check.outputs.has_gg }}
       has_snyk: ${{ steps.check.outputs.has_snyk }}
       has_sonar: ${{ steps.check.outputs.has_sonar }}
+      has_semgrep: ${{ steps.check.outputs.has_semgrep }}
     steps:
       - id: check
         shell: bash
@@ -26,6 +27,7 @@ jobs:
           if [ -n "${{ secrets.GITGUARDIAN_API_KEY }}" ]; then echo "has_gg=true" >> $GITHUB_OUTPUT; else echo "has_gg=false" >> $GITHUB_OUTPUT; fi
           if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then echo "has_snyk=true" >> $GITHUB_OUTPUT; else echo "has_snyk=false" >> $GITHUB_OUTPUT; fi
           if [[ -n "${{ secrets.SONAR_TOKEN }}" && -n "${{ vars.SONAR_PROJECT_KEY }}" ]]; then echo "has_sonar=true" >> $GITHUB_OUTPUT; else echo "has_sonar=false" >> $GITHUB_OUTPUT; fi
+          if [ -n "${{ secrets.SEMGREP_APP_TOKEN }}" ]; then echo "has_semgrep=true" >> $GITHUB_OUTPUT; else echo "has_semgrep=false" >> $GITHUB_OUTPUT; fi
 
   gitguardian:
     name: GitGuardian
@@ -36,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Run GitGuardian
+      - name: Run GitGuardian (Report + Dashboard push)
         continue-on-error: true
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
@@ -61,19 +63,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-      
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          
-      - name: Run Snyk Test
+      
+      - name: Run Snyk (Report + Dashboard push)
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           mkdir -p "${REPORT_DIR}/snyk"
           npx snyk test --json-file-output="${REPORT_DIR}/snyk/snyk.json" || true
+          npx snyk monitor --org=numdav --project-name=spiderfoot
           
       - uses: actions/upload-artifact@v4
         if: always()
@@ -83,14 +85,18 @@ jobs:
 
   semgrep:
     name: Semgrep
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_semgrep == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Semgrep
+      - name: Run Semgrep (Report + Dashboard push)
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
         run: |
           mkdir -p "${REPORT_DIR}/semgrep"
           pip install semgrep
-          semgrep scan --config auto --json --output "${REPORT_DIR}/semgrep/semgrep.json"
+          semgrep ci --json --output "${REPORT_DIR}/semgrep/semgrep.json" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -98,46 +104,40 @@ jobs:
           path: reports/semgrep
 
   sonarcloud:
-      name: SonarQube Cloud
-      needs: check-secrets
-      if: needs.check-secrets.outputs.has_sonar == 'true'
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 0
+    name: SonarQube Cloud
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_sonar == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.sources=.
+            -Dsonar.host.url=https://sonarcloud.io
+
+      - name: Wait for Processing
+        run: sleep 10
+
+      - name: Export Sonar Data to JSON
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          mkdir -p "${REPORT_DIR}/sonarcloud"
+          curl -sSf -H "Authorization: Bearer ${SONAR_TOKEN}" \
+            "https://sonarcloud.io/api/issues/search?componentKeys=${{ vars.SONAR_PROJECT_KEY }}&organization=${{ vars.SONAR_ORGANIZATION }}&ps=500" \
+            -o "${REPORT_DIR}/sonarcloud/sonar-issues.json" || true
       
-        - name: SonarQube Cloud Scan
-          uses: SonarSource/sonarqube-scan-action@v6
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          with:
-            args: >
-              -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-              -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-              -Dsonar.sources=.
-              -Dsonar.host.url=https://sonarcloud.io
-
-        - name: Export Sonar Issues and Metrics -> JSON
-          if: always()
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          run: |
-            mkdir -p "${REPORT_DIR}/sonarcloud"
-          
-            # Scarica l'elenco delle vulnerabilità e dei bug (Issues)
-            curl -sSf -H "Authorization: Bearer ${SONAR_TOKEN}" \
-              "https://sonarcloud.io/api/issues/search?componentKeys=${{ vars.SONAR_PROJECT_KEY }}&organization=${{ vars.SONAR_ORGANIZATION }}&ps=500" \
-              -o "${REPORT_DIR}/sonarcloud/sonar-issues.json" || echo "Failed to fetch issues"
-
-            # Scarica le metriche numeriche (coverage, numero di bug, ecc.)
-            curl -sSf -H "Authorization: Bearer ${SONAR_TOKEN}" \
-              "https://sonarcloud.io/api/measures/component?component=${{ vars.SONAR_PROJECT_KEY }}&metricKeys=bugs,vulnerabilities,security_hotspots,code_smells,coverage" \
-              -o "${REPORT_DIR}/sonarcloud/sonar-measures.json" || echo "Failed to fetch measures"
-
-        - name: Upload Sonar Full Reports
-          if: always()
-          uses: actions/upload-artifact@v4
-          with:
-            name: sonarcloud-results
-            path: reports/sonarcloud/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sonarcloud-report
+          path: reports/sonarcloud/
