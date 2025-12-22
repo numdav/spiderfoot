@@ -24,14 +24,8 @@ jobs:
         shell: bash
         run: |
           if [ -n "${{ secrets.GITGUARDIAN_API_KEY }}" ]; then echo "has_gg=true" >> $GITHUB_OUTPUT; else echo "has_gg=false" >> $GITHUB_OUTPUT; fi
-          
           if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then echo "has_snyk=true" >> $GITHUB_OUTPUT; else echo "has_snyk=false" >> $GITHUB_OUTPUT; fi
-          
-          if [[ -n "${{ secrets.SONAR_TOKEN }}" && -n "${{ vars.SONAR_PROJECT_KEY }}" && -n "${{ vars.SONAR_ORGANIZATION }}" ]]; then
-            echo "has_sonar=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_sonar=false" >> $GITHUB_OUTPUT
-          fi
+          if [[ -n "${{ secrets.SONAR_TOKEN }}" && -n "${{ vars.SONAR_PROJECT_KEY }}" ]]; then echo "has_sonar=true" >> $GITHUB_OUTPUT; else echo "has_sonar=false" >> $GITHUB_OUTPUT; fi
 
   gitguardian:
     name: GitGuardian
@@ -39,27 +33,19 @@ jobs:
     if: needs.check-secrets.outputs.has_gg == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (full history for CI scan)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Install ggshield
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install ggshield
-
-      - name: Run ggshield secret scan (CI) -> JSON
+      - name: Run GitGuardian
         continue-on-error: true
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
         run: |
           mkdir -p "${REPORT_DIR}/gitguardian"
-          ggshield secret scan ci --json -o "${REPORT_DIR}/gitguardian/ggshield-ci.json" --exit-zero
-
-      - name: Upload GitGuardian report (artifact)
+          pip install ggshield
+          ggshield secret scan ci --json -o "${REPORT_DIR}/gitguardian/ggshield.json" --exit-zero
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: gitguardian-report
           path: reports/gitguardian
@@ -70,28 +56,27 @@ jobs:
     if: needs.check-secrets.outputs.has_snyk == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Snyk CLI
-        uses: snyk/actions/setup@v1.0.0
-
-      - name: Run Snyk test -> JSON + SARIF
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+      - name: Run Snyk Test
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           mkdir -p "${REPORT_DIR}/snyk"
-          snyk test \
-            --file=requirements.txt \
-            --package-manager=pip \
-            --severity-threshold=low \
-            --json-file-output="${REPORT_DIR}/snyk/snyk-open-source.json" \
-            --sarif-file-output="${REPORT_DIR}/snyk/snyk-open-source.sarif" || true
-
-      - name: Upload Snyk report (artifact)
+          npx snyk test --json-file-output="${REPORT_DIR}/snyk/snyk.json" || true
+          
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: snyk-report
           path: reports/snyk
@@ -100,23 +85,14 @@ jobs:
     name: Semgrep
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Semgrep
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install semgrep
-
-      - name: Run Semgrep -> SARIF
-        continue-on-error: true
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
         run: |
           mkdir -p "${REPORT_DIR}/semgrep"
+          pip install semgrep
           semgrep scan --config auto --sarif --output "${REPORT_DIR}/semgrep/semgrep.sarif"
-
-      - name: Upload Semgrep report (artifact)
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: semgrep-report
           path: reports/semgrep
@@ -127,11 +103,10 @@ jobs:
     if: needs.check-secrets.outputs.has_sonar == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (full history recommended)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -141,28 +116,11 @@ jobs:
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.sources=.
+            -Dsonar.host.url=https://sonarcloud.io
 
-      - name: Export Sonar issues/measures -> JSON artifacts
-        if: always()
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
-          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
-        run: |
-          mkdir -p "${REPORT_DIR}/sonarcloud"
-          curl -sSf \
-            --header "Authorization: Bearer ${SONAR_TOKEN}" \
-            --url "https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&organization=${SONAR_ORGANIZATION}&ps=500" \
-            -o "${REPORT_DIR}/sonarcloud/issues.json" || true
-
-          curl -sSf \
-            --header "Authorization: Bearer ${SONAR_TOKEN}" \
-            --url "https://sonarcloud.io/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities,security_hotspots,code_smells,coverage,duplicated_lines_density,ncloc" \
-            -o "${REPORT_DIR}/sonarcloud/measures.json" || true
-
-      - name: Upload SonarQube Cloud report (artifact)
+      - name: Upload Sonar Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sonarcloud-report
-          path: reports/sonarcloud
+          path: .scannerwork/report-task.txt
