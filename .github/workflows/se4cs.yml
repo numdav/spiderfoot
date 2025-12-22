@@ -142,7 +142,7 @@ jobs:
           name: sonarcloud-report
           path: reports/sonarcloud/
   
-  aggregate-reports:
+aggregate-reports:
     name: Final Security Dashboard
     needs: [gitguardian, snyk, semgrep, sonarcloud]
     if: always()
@@ -155,16 +155,43 @@ jobs:
         with:
           path: reports
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Create Aggregator Script
+        run: |
+          cat << 'EOF' > merge_reports.py
+          import json
+          import os
+          from datetime import datetime
+
+          def generate_reports():
+              paths = {
+                  "gg": "reports/gitguardian-report/ggshield.json",
+                  "snyk": "reports/snyk-report/snyk.json",
+                  "semgrep": "reports/semgrep-report/semgrep.json",
+                  "sonar": "reports/sonarcloud-report/sonar-issues.json"
+              }
+              results = {}
+              for tool, path in paths.items():
+                  if os.path.exists(path):
+                      with open(path, 'r') as f:
+                          try:
+                              data = json.load(f)
+                              if tool == "gg": results["GitGuardian"] = data.get("total_incidents", 0)
+                              elif tool == "snyk": results["Snyk"] = len(data.get("vulnerabilities", []))
+                              elif tool == "semgrep": results["Semgrep"] = len(data.get("results", []))
+                              elif tool == "sonar": results["SonarCloud"] = data.get("total", data.get("paging", {}).get("total", 0))
+                          except: results[tool] = "Error"
+                  else: results[tool] = "N/A"
+
+              md = ["### Security Scan Summary", "| Tool | Findings | Status |", "| :--- | :---: | :--- |"]
+              for tool, count in results.items():
+                  status = "CLEAN" if str(count) == "0" else "REVIEW"
+                  md.append(f"| {tool} | **{count}** | {status} |")
+              
+              summary_file = os.environ.get('GITHUB_STEP_SUMMARY')
+              if summary_file:
+                  with open(summary_file, 'a') as f: f.write("\n".join(md))
+          if __name__ == "__main__": generate_reports()
+          EOF
 
       - name: Run Aggregator
         run: python merge_reports.py
-
-      - name: Archive Aggregated JSON
-        uses: actions/upload-artifact@v4
-        with:
-          name: final-security-json
-          path: security-summary.json
