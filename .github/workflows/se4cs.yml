@@ -141,3 +141,30 @@ jobs:
         with:
           name: sonarcloud-report
           path: reports/sonarcloud/
+  
+  aggregate-reports:
+    name: Final Security Dashboard
+    needs: [gitguardian, snyk, semgrep, sonarcloud]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Run Aggregator
+        run: python merge_reports.py
+
+      - name: Archive Aggregated JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-security-json
+          path: security-summary.json
