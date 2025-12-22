@@ -1,4 +1,4 @@
-name: se4cs SpiderFoot
+name: se4cs - SpiderFoot
 
 on:
   push:
@@ -13,10 +13,31 @@ env:
   REPORT_DIR: reports
 
 jobs:
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      has_gg: ${{ steps.check.outputs.has_gg }}
+      has_snyk: ${{ steps.check.outputs.has_snyk }}
+      has_sonar: ${{ steps.check.outputs.has_sonar }}
+    steps:
+      - id: check
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.GITGUARDIAN_API_KEY }}" ]; then echo "has_gg=true" >> $GITHUB_OUTPUT; else echo "has_gg=false" >> $GITHUB_OUTPUT; fi
+          
+          if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then echo "has_snyk=true" >> $GITHUB_OUTPUT; else echo "has_snyk=false" >> $GITHUB_OUTPUT; fi
+          
+          if [[ -n "${{ secrets.SONAR_TOKEN }}" && -n "${{ vars.SONAR_PROJECT_KEY }}" && -n "${{ vars.SONAR_ORGANIZATION }}" ]]; then
+            echo "has_sonar=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_sonar=false" >> $GITHUB_OUTPUT
+          fi
+
   gitguardian:
     name: GitGuardian
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_gg == 'true'
     runs-on: ubuntu-latest
-    if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
     steps:
       - name: Checkout (full history for CI scan)
         uses: actions/checkout@v4
@@ -45,8 +66,9 @@ jobs:
 
   snyk:
     name: Snyk
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_snyk == 'true'
     runs-on: ubuntu-latest
-    if: ${{ secrets.SNYK_TOKEN != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,8 +123,9 @@ jobs:
 
   sonarcloud:
     name: SonarQube Cloud
+    needs: check-secrets
+    if: needs.check-secrets.outputs.has_sonar == 'true'
     runs-on: ubuntu-latest
-    if: ${{ secrets.SONAR_TOKEN != '' && vars.SONAR_PROJECT_KEY != '' && vars.SONAR_ORGANIZATION != '' }}
     steps:
       - name: Checkout (full history recommended)
         uses: actions/checkout@v4
@@ -110,10 +133,9 @@ jobs:
           fetch-depth: 0
 
       - name: SonarQube Cloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
@@ -128,8 +150,6 @@ jobs:
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
         run: |
           mkdir -p "${REPORT_DIR}/sonarcloud"
-
-          # SonarQube Cloud Web API auth uses Authorization: Bearer <token>
           curl -sSf \
             --header "Authorization: Bearer ${SONAR_TOKEN}" \
             --url "https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&organization=${SONAR_ORGANIZATION}&ps=500" \
