@@ -138,7 +138,7 @@ jobs:
         timeout-minutes: 10
         continue-on-error: true
         run: |
-          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/ || true
+          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
 
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
