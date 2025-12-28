@@ -69,20 +69,28 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
-
+		  
+      - name: Build Docker Image (for scanning)
+        run: docker build -t spiderfoot-target .
+      
       - name: Run Snyk (Report + Dashboard push)
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           mkdir -p "${REPORT_DIR}/snyk"
+         
           echo "Running Snyk Open Source (Dependencies)..."
           npx snyk test --all-projects --skip-unresolved --json-file-output="${REPORT_DIR}/snyk/snyk_deps.json" || true
           
           echo "Running Snyk Code (SAST)..."
           npx snyk code test --all-projects --json-file-output="${REPORT_DIR}/snyk/snyk_code.json" || true
           
+          echo "Running Snyk Container..."
+          npx snyk container test spiderfoot-target --file=Dockerfile --json-file-output="${REPORT_DIR}/snyk/snyk_container.json" || true
+
           npx snyk monitor --all-projects --skip-unresolved --org=numdav
+          npx snyk container monitor spiderfoot-target --org=numdav
           
       - uses: actions/upload-artifact@v4
         if: always()
@@ -120,6 +128,17 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Install Dependencies for Test
+        run: |
+          pip install -r requirements.txt
+          pip install -r test/requirements.txt || true
+          pip install pytest pytest-cov coverage
+          
+      - name: Run Tests with Coverage
+        continue-on-error: true
+        run: |
+          pytest --cov=. --cov-report=xml:coverage.xml || true
+		
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -130,10 +149,11 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.sources=.
             -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.python.version=3.9
+            -Dsonar.python.version=3.11
+            -Dsonar.python.coverage.reportPaths=coverage.xml
 
       - name: Wait for Processing
-        run: sleep 10
+        run: sleep 20
 
       - name: Export Sonar Data to JSON
         if: always()
@@ -182,7 +202,11 @@ jobs:
           def get_snyk_count():
               total_count = 0
               found_any = False
-              snyk_files = ["reports/snyk-report/snyk_deps.json", "reports/snyk-report/snyk_code.json"]
+              snyk_files = [
+                  "reports/snyk-report/snyk_deps.json",
+                  "reports/snyk-report/snyk_code.json",
+                  "reports/snyk-report/snyk_container.json"
+              ]
 
               for file_path in snyk_files:
                   if os.path.exists(file_path):
