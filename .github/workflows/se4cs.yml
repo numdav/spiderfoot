@@ -62,7 +62,7 @@ jobs:
           path: reports/gitguardian
 
   snyk:
-    name: Snyk (Python)
+    name: Snyk
     needs: check-secrets
     if: needs.check-secrets.outputs.has_snyk == 'true'
     runs-on: ubuntu-latest
