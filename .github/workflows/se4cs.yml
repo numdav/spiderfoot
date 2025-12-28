@@ -135,7 +135,6 @@ jobs:
           pip install pytest pytest-cov coverage
           
       - name: Run Tests with Coverage (Safe Mode)
-        continue-on-error: true
         run: |
           timeout -k 10s 2m pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
 
