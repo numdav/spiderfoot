@@ -134,11 +134,19 @@ jobs:
           pip install -r test/requirements.txt || true
           pip install pytest pytest-cov coverage
           
-      - name: Run Tests with Coverage
-        timeout-minutes: 10
+      - name: Run Tests with Coverage (Safe Mode)
         continue-on-error: true
         run: |
-          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
+          timeout -k 10s 2m pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
+
+          if [ -f coverage.xml ]; then
+            echo "SUCCESS: coverage.xml è stato generato correttamente."
+            ls -l coverage.xml
+            exit 0
+          else
+            echo "ERROR: coverage.xml non trovato. Test fallito!"
+            exit 1
+          fi
 
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
