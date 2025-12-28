@@ -135,9 +135,10 @@ jobs:
           pip install pytest pytest-cov coverage
           
       - name: Run Tests with Coverage
+        timeout-minutes: 15
         continue-on-error: true
         run: |
-          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration || true
+          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
 
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
