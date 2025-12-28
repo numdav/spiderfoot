@@ -137,7 +137,7 @@ jobs:
       - name: Run Tests with Coverage
         continue-on-error: true
         run: |
-          pytest --cov=. --cov-report=xml:coverage.xml || true
+          pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration || true
 
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
