@@ -6,15 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 env:
   REPORT_DIR: reports
 
 jobs:
   check-secrets:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       has_gg: ${{ steps.check.outputs.has_gg }}
       has_snyk: ${{ steps.check.outputs.has_snyk }}
@@ -34,6 +33,8 @@ jobs:
     needs: check-secrets
     if: needs.check-secrets.outputs.has_gg == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
 
       - uses: actions/checkout@v4
@@ -66,6 +67,8 @@ jobs:
     needs: check-secrets
     if: needs.check-secrets.outputs.has_snyk == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +116,8 @@ jobs:
     needs: check-secrets
     if: needs.check-secrets.outputs.has_semgrep == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -141,6 +146,8 @@ jobs:
     needs: check-secrets
     if: needs.check-secrets.outputs.has_sonar == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -212,6 +219,8 @@ jobs:
     needs: [gitguardian, snyk, semgrep, sonarcloud]
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
