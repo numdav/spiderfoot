@@ -3,6 +3,8 @@
 Questo documento descrive l'architettura, gli strumenti, le scelte progettuali e le configurazioni della pipeline CI/CD implementata per il progetto SpiderFoot.  
 La pipeline è stata progettata per integrare i controlli di sicurezza automatizzati in Continuous Integration  (DevSecOps) su codice, dipendenze e infrastruttura del repository, tramite GitHub Actions.
 
+<img width="973" height="748" alt="image" src="https://github.com/user-attachments/assets/69ca581b-8a76-4eae-a6ed-6c2b57e59133" />
+
 ## **Architettura del Flusso**
 
 La pipeline (```se4cs.yml```) segue un approccio **Fail-Safe** con esecuzione parallela per massimizzare la velocità di feedback.
