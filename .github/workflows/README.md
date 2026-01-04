@@ -83,3 +83,6 @@ La pipeline rende disponibili per il download i seguenti report raw:
 2. ```snyk-report.zip``` (Contiene 3 JSON: *deps*, *code*, *container*)  
 3. ```semgrep-report.zip``` (Contiene 1 JSON: *semgrep*)  
 4. ```sonarcloud-report.zip``` (Contiene 1 JSON: *sonar-issues*)
+
+### **Push on Dashboard web**
+I report JSON generati vengono automaticamente caricati sulle Dashboard Web dei rispettivi strumenti, consentendo una consultazione centralizzata e il monitoraggio storico delle metriche di sicurezza.
