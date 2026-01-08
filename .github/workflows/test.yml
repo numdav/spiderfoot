@@ -1,0 +1,35 @@
+name: Test - SpiderFoot
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  runtest:
+    name: runtest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run SpiderFoot
+        run: |
+           python3 ./sf.py -l 127.0.0.1:5001 &
+           curl http://127.0.0.1:5001
