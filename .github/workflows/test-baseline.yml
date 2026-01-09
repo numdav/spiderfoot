@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  #JOB 1: Test Python
+  #JOB 1: Test Web - CLI
   runtest:
     name: runtest
     runs-on: ubuntu-latest
@@ -17,6 +17,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
+          ref: master
           fetch-depth: 0
 
       - name: Setup Python
@@ -39,6 +40,13 @@ jobs:
            else
              echo "WARNING: App failed to start"
            fi
+
+      - name: Run SFCLI
+        run: |
+           echo "Verifying CLI functionality..."
+           python3 sfcli.py --help
+           python3 sfcli.py -s http://127.0.0.1:5001 -debug
+
   #JOB 2: Test Docker
   docker-test:
     name: Docker build test
@@ -49,6 +57,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
+          ref: master
           fetch-depth: 0
 
       - name: Attempt Docker Build
