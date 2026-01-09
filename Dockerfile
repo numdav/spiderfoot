@@ -34,7 +34,7 @@
 #   sudo docker build -t spiderfoot-test --build-arg REQUIREMENTS=test/requirements.txt .
 #   sudo docker run --rm spiderfoot-test -m pytest --flake8 .
 
-FROM alpine:3.12.4 AS build
+FROM alpine:3.19 AS build
 ARG REQUIREMENTS=requirements.txt
 RUN apk add --no-cache gcc git curl python3 python3-dev py3-pip swig tinyxml-dev \
  python3-dev musl-dev openssl-dev libffi-dev libxslt-dev libxml2-dev jpeg-dev \
@@ -49,7 +49,7 @@ RUN pip3 install -r "$REQUIREMENTS"
 
 
 
-FROM alpine:3.13.0
+FROM alpine:3.19
 WORKDIR /home/spiderfoot
 
 # Place database and logs outside installation directory
@@ -63,7 +63,6 @@ RUN apk --update --no-cache add python3 musl openssl libxslt tinyxml libxml2 jpe
     && adduser -G spiderfoot -h /home/spiderfoot -s /sbin/nologin \
                -g "SpiderFoot User" -D spiderfoot \
     && rm -rf /var/cache/apk/* \
-    && rm -rf /lib/apk/db \
     && rm -rf /root/.cache \
     && mkdir -p $SPIDERFOOT_DATA || true \
     && mkdir -p $SPIDERFOOT_LOGS || true \
