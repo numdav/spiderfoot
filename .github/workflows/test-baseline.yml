@@ -2,6 +2,11 @@ name: Baseline Test - SpiderFoot
 
 on:
   workflow_dispatch:
+  
+  push:
+    branches:
+      - "fix-vuln-numda"
+  
 
 jobs:
   #JOB 1: Test Python
