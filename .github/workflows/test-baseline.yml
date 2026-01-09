@@ -45,7 +45,7 @@ jobs:
         run: |
            echo "Verifying CLI functionality..."
            python3 sfcli.py --help
-           python3 sfcli.py -s http://127.0.0.1:5001 -debug
+           python3 sfcli.py -s http://127.0.0.1:5001 -d
 
   #JOB 2: Test Docker
   docker-test:
