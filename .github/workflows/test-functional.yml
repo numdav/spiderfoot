@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # JOB 1: Test Python
+  # JOB 1: Test Web / CLI
   runtest:
     name: runtest
     runs-on: ubuntu-latest
@@ -34,6 +34,12 @@ jobs:
            python3 ./sf.py -l 127.0.0.1:5001 &
            sleep 10
            curl --fail http://127.0.0.1:5001
+
+      - name: Run SFCLI
+        run: |
+           echo "Verifying CLI functionality..."
+           python3 sfcli.py --help
+           python3 sfcli.py -s http://127.0.0.1:5001 -d
 
   # JOB 2: Test Docker
   docker-test:
