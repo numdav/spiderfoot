@@ -39,7 +39,7 @@ jobs:
            else
              echo "WARNING: App failed to start"
            fi
-  #JOB 2: Test 
+  #JOB 2: Test Docker
   docker-test:
     name: Docker build test
     runs-on: ubuntu-latest
