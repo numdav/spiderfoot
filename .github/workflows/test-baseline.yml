@@ -1,4 +1,4 @@
-name: Test - SpiderFoot
+name: Baseline Test - SpiderFoot
 
 on:
   push:
