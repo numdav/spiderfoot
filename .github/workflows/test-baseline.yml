@@ -1,12 +1,10 @@
 name: Baseline Test - SpiderFoot
 
 on:
-  workflow_dispatch:
-  
   push:
-    branches:
-      - "fix-vuln-numda"
-  
+    branches: [ "fix-vuln-numda" ]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   #JOB 1: Test Python
