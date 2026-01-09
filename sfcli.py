@@ -25,6 +25,16 @@ from os.path import expanduser
 
 import requests
 
+# ----------------------------------------------------------------
+def is_safe_path(path):
+  # FIX: risolve i path traversal classici e symlink
+    basedir = os.path.realpath(os.getcwd())
+    target = os.path.realpath(path)
+    try:  
+        return os.path.commonpath([basedir, target]) == basedir
+    except ValueError:
+        return False
+# ----------------------------------------------------------------
 
 ASCII_LOGO = r"""
   _________      .__    .___          ___________            __
@@ -1412,8 +1422,17 @@ if __name__ == "__main__":
             s.dprint("Using '.spiderfoot_history' in working directory")
             s.ownopts['cli.history_file'] = ".spiderfoot_history"
     if args.o:
-        s.ownopts['cli.spool'] = True
-        s.ownopts['cli.spool_file'] = args.o
+# -------------------------------------------------------
+      # FIX: Input Validation (Security Gate)
+
+       if not is_safe_path(args.o):
+           print(f"[CRITICAL] Security Violation: Path Traversal attempt detected.")
+           print(f"           The path '{args.o} resolves outside the current working directory.")
+           print(f"           Execution aborted to protect the filesystem.")
+           sys.exit(1)
+# -------------------------------------------------------
+       s.ownopts['cli.spool'] = True
+       s.ownopts['cli.spool_file'] = args.o
 
     if args.e or not os.isatty(0):
         try:
