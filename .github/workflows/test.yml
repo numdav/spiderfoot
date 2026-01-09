@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
+  #JOB 1: Test Python
   runtest:
     name: runtest
     runs-on: ubuntu-latest
@@ -33,8 +34,23 @@ jobs:
         run: |
            python3 ./sf.py -l 127.0.0.1:5001 &
            sleep 10
-           if curl http://127.0.0.1:5001; then
+           if curl -I http://127.0.0.1:5001; then
              echo "SUCCESS: App is running!"
            else
              echo "WARNING: App failed to start"
            fi
+  #JOB 2: Test 
+  docker-test:
+    name: Docker build test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Attempt Docker Build
+        run: |
+          docker build . -t spiderfoot:baseline
