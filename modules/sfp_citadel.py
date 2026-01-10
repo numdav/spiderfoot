@@ -95,7 +95,7 @@ class sfp_citadel(SpiderFootPlugin):
 
         apikey = self.opts.get('api_key')
 
-        if not apikey:
+        if not apikey or apikey.strip() == "":
             # Public API key
             # apikey = "3edfb5603418f101926c64ca5dd0e409"
 
@@ -103,8 +103,7 @@ class sfp_citadel(SpiderFootPlugin):
             return None
 
         params = {
-            'query': email,
-            # 'query': email.encode('raw_unicode_escape').decode("ascii", errors='replace'),
+            'query': email.encode('raw_unicode_escape').decode("ascii", errors='replace'),
             'type': 'email_address',
             'key': apikey
         }
