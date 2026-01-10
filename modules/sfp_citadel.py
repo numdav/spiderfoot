@@ -93,7 +93,7 @@ class sfp_citadel(SpiderFootPlugin):
 # ------------------------------------------------------------------------------------------
 # FIX: Rimozione Hardcoded Secret
 
-        apikey = self.opts.get['api_key']
+        apikey = self.opts.get('api_key')
 
         if not apikey:
             # Public API key
@@ -115,7 +115,7 @@ class sfp_citadel(SpiderFootPlugin):
                                useragent=self.opts['_useragent'])
 
         if res['code'] == "429":
-            self.error("Rate limit exceed for LEak-Lookup.")
+            self.error("Rate limit exceed for Leak-Lookup.")
             time.sleep(10)
             return None #self.queryEmail(email)
 
