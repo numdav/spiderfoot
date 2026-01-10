@@ -90,7 +90,7 @@ class sfp_citadel(SpiderFootPlugin):
     # Query email address
     # https://leak-lookup.com/api
     def queryEmail(self, email):
-# -------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # FIX: Rimozione Hardcoded Secret
 
         apikey = self.opts.get['api_key']
@@ -129,7 +129,7 @@ class sfp_citadel(SpiderFootPlugin):
             self.debug(f"Error processing JSON response: {e}")
 
         return None
-
+# ------------------------------------------------------------------------------------------
     # Handle events sent to this module
     def handleEvent(self, event):
         eventName = event.eventType
