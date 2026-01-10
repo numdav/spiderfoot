@@ -90,14 +90,21 @@ class sfp_citadel(SpiderFootPlugin):
     # Query email address
     # https://leak-lookup.com/api
     def queryEmail(self, email):
-        apikey = self.opts['api_key']
+# -------------------------------------------------------------------------------------
+# FIX: Rimozione Hardcoded Secret
+
+        apikey = self.opts.get['api_key']
 
         if not apikey:
             # Public API key
-            apikey = "3edfb5603418f101926c64ca5dd0e409"
+            # apikey = "3edfb5603418f101926c64ca5dd0e409"
+
+            self.error("You must set an API key in module settings.")
+            return None
 
         params = {
-            'query': email.encode('raw_unicode_escape').decode("ascii", errors='replace'),
+            'query': email,
+            # 'query': email.encode('raw_unicode_escape').decode("ascii", errors='replace'),
             'type': 'email_address',
             'key': apikey
         }
@@ -108,8 +115,9 @@ class sfp_citadel(SpiderFootPlugin):
                                useragent=self.opts['_useragent'])
 
         if res['code'] == "429":
+            self.error("Rate limit exceed for LEak-Lookup.")
             time.sleep(10)
-            return self.queryEmail(email)
+            return None #self.queryEmail(email)
 
         if res['content'] is None:
             self.debug('No response from Leak-Lookup.com')
