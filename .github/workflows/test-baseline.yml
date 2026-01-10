@@ -116,7 +116,7 @@ jobs:
               sys.exit(1)
           EOF
 
-          python3 test_citadel_debug.py
+          python3 test_citadel_vuln.py
 
 
   #JOB 2: Test Docker
