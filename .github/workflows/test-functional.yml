@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # JOB 1: Test Web / CLI
+  # JOB 1: Test Web - CLI - Module
   runtest:
     name: runtest
     runs-on: ubuntu-latest
@@ -40,6 +40,74 @@ jobs:
            echo "Verifying CLI functionality..."
            python3 sfcli.py --help
            python3 sfcli.py -s http://127.0.0.1:5001 -d
+
+      - name: Security Verification - sfp_citadel
+        # Questo test deve FALLIRE se trova la vulnerabilità.
+        run: |
+          cat <<EOF > test_citadel_vuln.py
+          import sys
+          import os
+          from unittest.mock import MagicMock
+
+          print("--- INIZIO ANALISI DINAMICA SFP_CITADEL ---")
+
+          sys.path.append(os.getcwd())
+
+          class MockPlugin:
+              def __init__(self):
+                  self.opts = {}
+              def tempStorage(self): return {}
+              def error(self, msg): print(f"[LOG ERROR] {msg}")
+              def debug(self, msg): pass
+              def info(self, msg): pass
+
+          sys.modules['spiderfoot'] = MagicMock()
+          sys.modules['spiderfoot'].SpiderFootPlugin = MockPlugin
+          sys.modules['spiderfoot'].SpiderFootEvent = MagicMock()
+
+          try:
+              from modules.sfp_citadel import sfp_citadel
+              print("[OK] Modulo sfp_citadel importato correttamente.")
+          except ImportError as e:
+              print(f"::error::Impossibile importare il modulo: {e}")
+              sys.exit(1)
+
+          plugin = sfp_citadel()
+          plugin.opts = {
+              'api_key': '', 
+              'timeout': 30, 
+              '_useragent': 'SecurityTest'
+          }
+          plugin.sf = MagicMock()
+
+          def spy_fetchUrl(url, postData=None, timeout=None, useragent=None):
+              print(f"[NETWORK] Intercettata chiamata a: {url}")
+              
+              HARDCODED_KEY = "3edfb5603418f101926c64ca5dd0e409"
+              
+              if postData and HARDCODED_KEY in str(postData):
+                  print(f"::error::[CRITICAL] VULNERABILITÀ CONFERMATA!")
+                  print(f"Il modulo ha inviato la chiave hardcoded: {HARDCODED_KEY}")
+                  sys.exit(1) 
+              else:
+                  print("[INFO] Nessuna chiave hardcoded rilevata nella chiamata.")
+                  return {'content': None, 'code': '200'}
+
+          plugin.sf.fetchUrl = spy_fetchUrl
+
+          print("Esecuzione logica plugin...")
+          try:
+              plugin.queryEmail("test@target.com")
+              print("[INFO] Il test è terminato senza rilevare la chiave.")
+              sys.exit(0)
+          except SystemExit:
+              raise
+          except Exception as e:
+              print(f"::error::Errore imprevisto durante l'esecuzione: {e}")
+              sys.exit(1)
+          EOF
+
+          python3 test_citadel_vuln.py
 
   # JOB 2: Test Docker
   docker-test:
