@@ -1,4 +1,4 @@
-# **SE4CS - SpiderFoot - DevSecOps Pipeline Documentation**
+# **SE4SCS - SpiderFoot - DevSecOps Pipeline Documentation**
 
 Questo documento descrive l'architettura, gli strumenti, le scelte progettuali e le configurazioni della pipeline CI/CD implementata per il progetto SpiderFoot.  
 La pipeline è stata progettata per integrare i controlli di sicurezza automatizzati in Continuous Integration  (DevSecOps) su codice, dipendenze e infrastruttura del repository, tramite GitHub Actions.
