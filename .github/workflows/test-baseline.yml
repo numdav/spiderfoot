@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  #JOB 1: Test Web - CLI
+  #JOB 1: Test Web - CLI - Module
   runtest:
     name: runtest
     runs-on: ubuntu-latest
@@ -46,6 +46,40 @@ jobs:
            echo "Verifying CLI functionality..."
            python3 sfcli.py --help
            python3 sfcli.py -s http://127.0.0.1:5001 -d
+
+      - name: Security Verification - sfp_citadel
+        # Questo test deve FALLIRE se trova la vulnerabilità.
+        continue-on-error: true
+        run: |
+          cat <<EOF > test_citadel_vuln.py
+          import sys
+          from unittest.mock import MagicMock
+          
+          sys.modules['spiderfoot'] = MagicMock()
+          
+          try:
+              from modules.sfp_citadel import sfp_citadel
+              plugin = sfp_citadel()
+              plugin.opts = {'api_key': '', 'timeout': 30, '_useragent': 'Test'}
+              plugin.sf = MagicMock()
+
+              def spy_fetchUrl(url, postData=None, **kwargs):
+                  if "3edfb5603418f101926c64ca5dd0e409" in str(postData):
+                      print("VULNERABILITA RILEVATA: Chiave hardcoded usata!")
+                      sys.exit(1)
+                  return {'content': None, 'code': '200'}
+              
+              plugin.sf.fetchUrl = spy_fetchUrl
+              plugin.queryEmail("test@test.com")
+              
+          except SystemExit:
+              sys.exit(1)
+          except Exception as e:
+              print(f"Errore imprevisto: {e}")
+          EOF
+          
+          echo "Running Citadel Verification on MASTER code..."
+          python3 test_citadel_vuln.py
 
   #JOB 2: Test Docker
   docker-test:
