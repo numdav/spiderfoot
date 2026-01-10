@@ -58,22 +58,34 @@ jobs:
           sys.modules['spiderfoot'] = MagicMock()
           
           try:
+              print("--- INIZIO ANALISI DINAMICA SFP_CITADEL ---")
               from modules.sfp_citadel import sfp_citadel
               plugin = sfp_citadel()
               plugin.opts = {'api_key': '', 'timeout': 30, '_useragent': 'Test'}
               plugin.sf = MagicMock()
 
               def spy_fetchUrl(url, postData=None, **kwargs):
-                  if "3edfb5603418f101926c64ca5dd0e409" in str(postData):
-                      print("VULNERABILITA RILEVATA: Chiave hardcoded usata!")
+                  print(f"DEBUG: Chiamata HTTP tentata verso: {url}")
+
+                  VULN_KEY = "3edfb5603418f101926c64ca5dd0e409"
+
+                  if postData and VULN_KEY in str(postData):
+                      print("\n[!!!] CRITICAL ALERT [!!!]")
+                      print(f"Il modulo ha inviato la chiave: {VULN_KEY}")
+                      print("DIAGNOSI: Il modulo FUNZIONA ma è VULNERABILE (Secret Exposure).")
                       sys.exit(1)
-                  return {'content': None, 'code': '200'}
+                  else:
+                      print("INFO: Nessuna chiave hardcoded rilevata nella chiamata.")
+                      return {'content': None, 'code': '200'}
               
               plugin.sf.fetchUrl = spy_fetchUrl
+              print("Esecuzione queryMail()...")
               plugin.queryEmail("test@test.com")
+
+              print("RISULTATO: Il modulo ha girato senza esporre il secret (o non ha fatto chiamate).")
               
-          except SystemExit:
-              sys.exit(1)
+          except SystemExit as e:
+              sys.exit(e.code)
           except Exception as e:
               print(f"Errore imprevisto: {e}")
           EOF
