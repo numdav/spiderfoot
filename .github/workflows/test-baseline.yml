@@ -60,8 +60,6 @@ jobs:
           
           sys.path.append(os.getcwd())
           
-          sys.modules['spiderfoot'] = MagicMock()
-
           class MockPlugin:
               def __init__(self):
                   self.opts = {}
