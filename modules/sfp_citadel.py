@@ -96,9 +96,7 @@ class sfp_citadel(SpiderFootPlugin):
         apikey = self.opts.get('api_key')
 
         if not apikey or apikey.strip() == "":
-            # Public API key
-            # apikey = "3edfb5603418f101926c64ca5dd0e409"
-
+   
             self.error("You must set an API key for Leak-Lookup in module settings.")
             return None
 
