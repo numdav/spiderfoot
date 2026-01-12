@@ -8,7 +8,7 @@ Questo permette di verificare lo stato di funzionamento dell'applicazione "AS-IS
 
 ## **Struttura dei Job**
 
-### **1\. Job runtest WEB / CLI**
+### **1\. Job runtest WEB / CLI / Module**
 
 Questo job verifica l'eseguibilità dell'applicazione in un ambiente Python 3.11 nativo.
 
@@ -20,6 +20,11 @@ Questo job verifica l'eseguibilità dell'applicazione in un ambiente Python 3.11
 * **CLI Verification:**  
   * Esegue sfcli.py \--help per confermare che il modulo a riga di comando sia interpretabile e privo di errori di sintassi bloccanti.  
   * Tenta una connessione al server tramite sfcli.py \-d.
+* **Module Verification - sfp_citadel (Vulnerability Confirmation):**
+  * Questo step esegue uno script Python dinamico (`test_citadel_vuln.py`) creato a runtime.
+  * **Obiettivo:** Simulare l'esecuzione del modulo `sfp_citadel.py` intercettando le chiamate di rete (mocking).
+  * **Logica del Test:** Se il modulo tenta di inviare la chiave API hardcodata nota (`3edfb560...`), il test intercetta la richiesta e segnala la vulnerabilità confermata.
+  * **Comportamento Pipeline:** Lo step è configurato con `continue-on-error: true` perché, nel contesto di baseline, ci aspettiamo che la vulnerabilità sia presente (e quindi che lo script esca con errore `sys.exit(1)`), confermando la necessità del fix.
 
 ### **2\. Job docker-test (Container Build)**
 
