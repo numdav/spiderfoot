@@ -1349,12 +1349,14 @@ class SpiderFootWebUi:
     def query(self: 'SpiderFootWebUi', query: str) -> str:
         """For the CLI to run queries against the database.
 
-        Args:
-            query (str): SQL query
+        SECURITY PATCH (ACT): Arbitrary SQL execution via Web interface is disabled.
 
-        Returns:
-            str: query results as JSON
         """
+        # FIX: il DB non viene istanziato.
+        if query:
+            self.log.error(f"SECURITY: Attempted arbitrary SQL execution blocked: {query}")
+        return elf.jsonify_error('403', "Access Denied: Arbitrary SQL execution is disabled for security reasons.")
+"""
         dbh = SpiderFootDb(self.config)
 
         if not query:
@@ -1370,7 +1372,7 @@ class SpiderFootWebUi:
             return [dict(zip(columnNames, row)) for row in data]
         except Exception as e:
             return self.jsonify_error('500', str(e))
-
+"""
     @cherrypy.expose
     def startscan(self: 'SpiderFootWebUi', scanname: str, scantarget: str, modulelist: str, typelist: str, usecase: str) -> str:
         """Initiate a scan.
