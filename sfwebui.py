@@ -1355,24 +1355,8 @@ class SpiderFootWebUi:
         # FIX: il DB non viene istanziato.
         if query:
             self.log.error(f"SECURITY: Attempted arbitrary SQL execution blocked: {query}")
-        return elf.jsonify_error('403', "Access Denied: Arbitrary SQL execution is disabled for security reasons.")
-"""
-        dbh = SpiderFootDb(self.config)
+        return self.jsonify_error('403', "Access Denied: Arbitrary SQL execution is disabled for security reasons.")
 
-        if not query:
-            return self.jsonify_error('400', "Invalid query.")
-
-        if not query.lower().startswith("select"):
-            return self.jsonify_error('400', "Non-SELECTs are unpredictable and not recommended.")
-
-        try:
-            ret = dbh.dbh.execute(query)
-            data = ret.fetchall()
-            columnNames = [c[0] for c in dbh.dbh.description]
-            return [dict(zip(columnNames, row)) for row in data]
-        except Exception as e:
-            return self.jsonify_error('500', str(e))
-"""
     @cherrypy.expose
     def startscan(self: 'SpiderFootWebUi', scanname: str, scantarget: str, modulelist: str, typelist: str, usecase: str) -> str:
         """Initiate a scan.
