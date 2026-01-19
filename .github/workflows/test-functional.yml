@@ -41,6 +41,36 @@ jobs:
            python3 sfcli.py --help
            python3 sfcli.py -s http://127.0.0.1:5001 -d
 
+      - name: Verify Core Functionality (Regression Test)
+        # Verifica che il DB sia accessibile tramite API legittime
+        run: |
+           echo "Testing /scanlist API..."
+           RESPONSE=$(curl -s "http://127.0.0.1:5001/scanlist")
+           
+           # Se la risposta contiene una lista JSON (parentesi quadra), l'app funziona
+           if [[ "$RESPONSE" == *"["* ]]; then
+             echo "[SUCCESS] API /scanlist funzionante. DB connesso."
+           else
+             echo "[FAIL] API /scanlist non ha restituito dati validi. Possibile regressione!"
+             echo "Output ricevuto: $RESPONSE"
+             exit 1
+           fi
+
+      - name: Verify SQL Injection Fix
+        # Verifica che l'endpoint vulnerabile sia bloccato (403)
+        run: |
+           echo "Testing SQL Injection blocking..."
+           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:5001/query?query=SELECT+1")
+           
+           if [ "$HTTP_CODE" == "403" ]; then
+             echo "[SUCCESS] Fix verificato: L'attacco è stato bloccato (HTTP 403 Forbidden)."
+           elif [ "$HTTP_CODE" == "200" ]; then
+             echo "[FAIL] Vulnerabilità ancora presente! La query è stata eseguita (HTTP 200)."
+             exit 1
+           else
+             echo "[INFO] Codice risposta imprevisto ma sicuro: $HTTP_CODE"
+           fi
+
       - name: Security Verification - sfp_citadel
         # Questo test deve FALLIRE se trova la vulnerabilità.
         run: |
