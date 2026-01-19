@@ -47,6 +47,17 @@ jobs:
            python3 sfcli.py --help
            python3 sfcli.py -s http://127.0.0.1:5001 -d
 
+      - name: Verify Legacy /query Functionality
+        run: |
+           echo "Testing legacy SQL execution..."
+           RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:5001/query?query=SELECT+1")
+           if [ "$RESPONSE_CODE" == "200" ]; then
+             echo "[SUCCESS] L'endpoint /query è attivo e funzionante (HTTP 200)."
+           else
+             echo "::error::[FAIL] L'endpoint /query non funziona come previsto (Code: $RESPONSE_CODE)."
+             exit 1
+           fi
+
       - name: Security Verification - sfp_citadel
         # Questo test deve FALLIRE se trova la vulnerabilità.
         continue-on-error: true
