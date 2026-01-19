@@ -47,7 +47,7 @@ jobs:
            python3 sfcli.py --help
            python3 sfcli.py -s http://127.0.0.1:5001 -d
 
-      - name: Verify Verification - SQL Injection Probe
+      - name: Security Verification - SQL Injection Probe
         run: |
            echo "Testing query endpoint vulnerability..."
            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:5001/query?query=SELECT+1")
