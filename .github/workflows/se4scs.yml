@@ -1,20 +1,26 @@
 name: se4scs - SpiderFoot
 
+# Pipeline triggers: execute on push to specific branch, pull request, or manually
 on:
   push:
     branches: [ "fix-vuln-numda" ]
   pull_request:
   workflow_dispatch:
 
+# Global environment variables
 env:
   REPORT_DIR: reports
 
 jobs:
+  # JOB 1: Pre-check for secrets availability
+  # This job checks if the necessary API keys/tokens are present in the repository secrets.
+  # This prevents subsequent jobs from failing due to missing credentials.
   check-secrets:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
+      # Map step outputs to job outputs for use in 'needs' context of other jobs
       has_gg: ${{ steps.check.outputs.has_gg }}
       has_snyk: ${{ steps.check.outputs.has_snyk }}
       has_sonar: ${{ steps.check.outputs.has_sonar }}
@@ -23,11 +29,17 @@ jobs:
       - id: check
         shell: bash
         run: |
+          # Verify GitGuardian API Key
           if [ -n "${{ secrets.GITGUARDIAN_API_KEY }}" ]; then echo "has_gg=true" >> $GITHUB_OUTPUT; else echo "has_gg=false" >> $GITHUB_OUTPUT; fi
+          # Verify Snyk Token
           if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then echo "has_snyk=true" >> $GITHUB_OUTPUT; else echo "has_snyk=false" >> $GITHUB_OUTPUT; fi
+          # Verify SonarCloud Token and Project Key
           if [[ -n "${{ secrets.SONAR_TOKEN }}" && -n "${{ vars.SONAR_PROJECT_KEY }}" ]]; then echo "has_sonar=true" >> $GITHUB_OUTPUT; else echo "has_sonar=false" >> $GITHUB_OUTPUT; fi
+          # Verify Semgrep Token
           if [ -n "${{ secrets.SEMGREP_APP_TOKEN }}" ]; then echo "has_semgrep=true" >> $GITHUB_OUTPUT; else echo "has_semgrep=false" >> $GITHUB_OUTPUT; fi
 
+  # JOB 2: GitGuardian Scan (Secrets Detection)
+  # Runs only if check-secrets confirmed the presence of the API key.
   gitguardian:
     name: GitGuardian
     needs: check-secrets
@@ -36,10 +48,9 @@ jobs:
     permissions:
       contents: read
     steps:
-
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Required for full history scanning
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -48,20 +59,23 @@ jobs:
           cache: 'pip'
 
       - name: Run GitGuardian (Report + Dashboard push)
-        continue-on-error: true
+        continue-on-error: true # Don't fail the pipeline if secrets are found
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
         run: |
           mkdir -p "${REPORT_DIR}/gitguardian"
           pip install ggshield
+          # Scan CI history and output JSON report
           ggshield secret scan ci --json -o "${REPORT_DIR}/gitguardian/ggshield.json" --exit-zero
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() # Upload report even if the scan failed
         with:
           name: gitguardian-report
           path: reports/gitguardian
 
+  # JOB 3: Snyk Scan (SCA, SAST, Container)
+  # Runs parallel analysis on Dependencies, Code, and Docker image.
   snyk:
     name: Snyk
     needs: check-secrets
@@ -81,7 +95,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install -r requirements.txt || true # Continue even if install has warnings
 
       - name: Build Docker Image (for scanning)
         run: docker build -t spiderfoot-target .
@@ -94,14 +108,18 @@ jobs:
           mkdir -p "${REPORT_DIR}/snyk"
 
           echo "Running Snyk Open Source (Dependencies)..."
+          # SCA Scan: Checks requirements.txt for vulnerable libraries
           npx snyk test --all-projects --skip-unresolved --json-file-output="${REPORT_DIR}/snyk/snyk_deps.json" || true
 
           echo "Running Snyk Code (SAST)..."
+          # SAST Scan: Static analysis of Python code
           npx snyk code test --all-projects --json-file-output="${REPORT_DIR}/snyk/snyk_code.json" || true
 
           echo "Running Snyk Container..."
+          # Container Scan: Checks base image (Alpine) vulnerabilities
           npx snyk container test spiderfoot-target --file=Dockerfile --json-file-output="${REPORT_DIR}/snyk/snyk_container.json" || true
 
+          # Push results to Snyk Web Dashboard
           npx snyk monitor --all-projects --skip-unresolved --org=numdav
           npx snyk container monitor spiderfoot-target --org=numdav
 
@@ -111,6 +129,8 @@ jobs:
           name: snyk-report
           path: reports/snyk
 
+  # JOB 4: Semgrep Scan (SAST & Configuration)
+  # Lightweight static analysis for custom security rules.
   semgrep:
     name: Semgrep
     needs: check-secrets
@@ -133,6 +153,7 @@ jobs:
         run: |
           mkdir -p "${REPORT_DIR}/semgrep"
           pip install semgrep
+          # Run scan and generate JSON report
           semgrep ci --json --output "${REPORT_DIR}/semgrep/semgrep.json" || true
 
       - uses: actions/upload-artifact@v4
@@ -141,6 +162,8 @@ jobs:
           name: semgrep-report
           path: reports/semgrep
 
+  # JOB 5: SonarCloud Scan (Code Quality & Coverage)
+  # Checks for code smells, bugs, and technical debt.
   sonarcloud:
     name: SonarQube Cloud
     needs: check-secrets
@@ -151,7 +174,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Full history needed for Blame information
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -167,6 +190,7 @@ jobs:
           
       - name: Run Tests with Coverage (Safe Mode)
         continue-on-error: true
+        # Run unit tests to generate coverage report (needed by Sonar)
         run: |
           echo "Avvio i test con timeout di 2 minuti..."
           timeout -k 10s 2m pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
@@ -196,7 +220,7 @@ jobs:
             -Dsonar.python.coverage.reportPaths=coverage.xml
 
       - name: Wait for Processing
-        run: sleep 20
+        run: sleep 20 # Wait for SonarCloud to process the report
 
       - name: Export Sonar Data to JSON
         if: always()
@@ -204,6 +228,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mkdir -p "${REPORT_DIR}/sonarcloud"
+          # Fetch issue list via API for local reporting
           curl -sSf -H "Authorization: Bearer ${SONAR_TOKEN}" \
             "https://sonarcloud.io/api/issues/search?componentKeys=${{ vars.SONAR_PROJECT_KEY }}&organization=${{ vars.SONAR_ORGANIZATION }}&ps=500" \
             -o "${REPORT_DIR}/sonarcloud/sonar-issues.json" || true
@@ -214,10 +239,12 @@ jobs:
           name: sonarcloud-report
           path: reports/sonarcloud/
 
+  # JOB 6: Report Aggregation
+  # Downloads all artifacts from previous jobs and creates a summary.
   aggregate-reports:
     name: Final Security Dashboard
     needs: [gitguardian, snyk, semgrep, sonarcloud]
-    if: always()
+    if: always() # Run even if some scans failed
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -230,11 +257,13 @@ jobs:
           path: reports
 
       - name: Create Aggregator Script
+        # Python script to parse JSON reports and generate a Markdown summary
         run: |
           cat << 'EOF' > merge_reports.py
           import json
           import os
 
+          # Helper function to count vulnerabilities in nested JSON structures
           def count_issues_in_data(data):
               count = 0
               if "vulnerabilities" in data:
@@ -244,6 +273,7 @@ jobs:
                       count += len(run.get("results", []))
               return count
 
+          # Calculate total issues from multiple Snyk report files
           def get_snyk_count():
               total_count = 0
               found_any = False
@@ -270,9 +300,11 @@ jobs:
                           pass
               return total_count if found_any else "N/A"
 
+          # Main function to generate the summary table
           def generate_reports():
               results = {}
 
+              # 1. Parse GitGuardian Results
               gg_path = "reports/gitguardian-report/ggshield.json"
               if os.path.exists(gg_path):
                   try:
@@ -282,6 +314,7 @@ jobs:
                   except: results["GitGuardian"] = "Error"
               else: results["GitGuardian"] = "N/A"
 
+              # 2. Parse Semgrep Results
               semgrep_path = "reports/semgrep-report/semgrep.json"
               if os.path.exists(semgrep_path):
                   try:
@@ -291,6 +324,7 @@ jobs:
                   except: results["Semgrep"] = "Error"
               else: results["Semgrep"] = "N/A"
 
+              # 3. Parse SonarCloud Results
               sonar_path = "reports/sonarcloud-report/sonar-issues.json"
               if os.path.exists(sonar_path):
                   try:
@@ -300,8 +334,10 @@ jobs:
                   except: results["SonarCloud"] = "Error"
               else: results["SonarCloud"] = "N/A"
 
+              # 4. Parse Snyk Results
               results["Snyk"] = get_snyk_count()
 
+              # Generate Markdown Table for GitHub Actions Summary
               md = ["### Security Scan Summary (SpiderFoot)", "| Tool | Findings | Status |", "| :--- | :---: | :--- |"]
               for tool, count in results.items():
                   status = "CLEAN" if str(count) == "0" else "REVIEW"
@@ -309,6 +345,7 @@ jobs:
                       status = "FAIL"
                   md.append(f"| {tool} | **{count}** | {status} |")
               
+              # Write to GITHUB_STEP_SUMMARY environment file
               summary_file = os.environ.get('GITHUB_STEP_SUMMARY')
               if summary_file:
                   with open(summary_file, 'a') as f: f.write("\n".join(md))
