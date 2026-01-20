@@ -2,7 +2,7 @@ name: se4scs - SpiderFoot
 
 on:
   push:
-    branches: [ "master", "main" ]
+    branches: [ "fix-vuln-numda" ]
   pull_request:
   workflow_dispatch:
 
