@@ -7,7 +7,7 @@ La pipeline è stata progettata per integrare i controlli di sicurezza automatiz
 
 ## **Architettura del Flusso**
 
-La pipeline (```se4cs.yml```) segue un approccio **Fail-Safe** con esecuzione parallela per massimizzare la velocità di feedback.
+La pipeline (```se4scs.yml```) segue un approccio **Fail-Safe** con esecuzione parallela per massimizzare la velocità di feedback.
 
 1. **Check Secrets:** Verifica preliminare della presenza dei token necessari. Se un segreto manca, il job corrispondente viene saltato senza far fallire la pipeline.  
 2. **Parallel Security Scans:** Esecuzione simultanea di 4 motori di analisi (GitGuardian, Snyk, Semgrep, SonarCloud).  
@@ -69,7 +69,7 @@ Per garantire che i dati siano disponibili via API per il report JSON finale, è
 
 ## **Aggregazione e Reporting**
 
-Il job finale ```aggregate-reports``` utilizza uno script Python personalizzato (```merge_reports.py```) iniettato dinamicamente (per praticità di trasporto del file ```se4cs.yml``` tra altri repository di test).
+Il job finale ```aggregate-reports``` utilizza uno script Python personalizzato (```merge_reports.py```) iniettato dinamicamente (per praticità di trasporto del file ```se4scs.yml``` tra altri repository di test).
 
 **Funzionalità dello script:**
 
@@ -82,7 +82,7 @@ Il job finale ```aggregate-reports``` utilizza uno script Python personalizzato 
 La pipeline rende disponibili per il download i seguenti report raw:
 
 1. ```gitguardian-report.zip``` (Contiene 1 JSON: *ggshield*)  
-2. ```snyk-report.zip``` (Contiene 3 JSON: *deps*, *code*, *container*)  
+2. ```snyk-report.zip``` (Contiene 3 JSON: *snyk_deps*, *snyk_code*, *snyk_container*)  
 3. ```semgrep-report.zip``` (Contiene 1 JSON: *semgrep*)  
 4. ```sonarcloud-report.zip``` (Contiene 1 JSON: *sonar-issues*)
 
