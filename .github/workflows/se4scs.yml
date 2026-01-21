@@ -192,17 +192,17 @@ jobs:
         continue-on-error: true
         # Run unit tests to generate coverage report (needed by Sonar)
         run: |
-          echo "Avvio i test con timeout di 2 minuti..."
+          echo "Starting tests with 2 minutes timeout..."
           timeout -k 10s 2m pytest --cov=. --cov-report=xml:coverage.xml --ignore=test/integration --ignore=test/unit/test_spiderfoot.py || true
-          echo "Esecuzione terminata. Verifico i risultati..."
+          echo "Execution finished. Verifying results..."
 
           if [ -s coverage.xml ]; then
-            echo "SUCCESS: coverage.xml è stato generato correttamente."
+            echo "SUCCESS: coverage.xml generated successfully."
             ls -lh coverage.xml
             exit 0
           else
-            echo "ERROR: coverage.xml non trovato o vuoto."
-            echo "SonarCloud non avrà dati di copertura, ma l'analisi statica funzionerà comunque."
+            echo "ERROR: coverage.xml not found or empty."
+            echo "SonarCloud will not have coverage data, but static analysis will still run."
             exit 1
           fi
 
